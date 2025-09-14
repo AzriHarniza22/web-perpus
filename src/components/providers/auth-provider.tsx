@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react'
 import { User } from '@supabase/supabase-js'
-import { createClientSupabase } from '@/lib/supabase/client'
+import { createClientSupabase, supabaseUrl, supabaseAnonKey } from '@/lib/supabase/client'
 import { User as AppUser } from '@/types'
 
 interface AuthContextType {
@@ -19,15 +19,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [appUser, setAppUser] = useState<AppUser | null>(null)
   const [loading, setLoading] = useState(true)
+
+  // Log loading changes
+  useEffect(() => {
+    console.log('💡 Loading state changed to:', loading);
+  }, [loading]);
   const supabase = createClientSupabase()
 
   const refreshUser = async () => {
+    console.log('🔄 Starting refreshUser...');
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      // Test basic connectivity to Supabase
+      console.log('🌐 Testing connectivity to Supabase...');
+      const response = await fetch(`${supabaseUrl}/rest/v1/`, {
+        method: 'GET',
+        headers: {
+          'apikey': supabaseAnonKey
+        }
+      });
+      if (response.ok || response.status === 401) {  // 401 is expected for anon without session
+        console.log('✅ Supabase project reachable (status:', response.status, ')');
+      } else {
+        console.log('❌ Supabase connection failed:', response.status, response.statusText);
+        throw new Error(`Supabase unreachable: ${response.status}`);
+      }
+
+      console.log('👤 Calling supabase.auth.getUser()...');
+      const { data: { user } } = await supabase.auth.getUser();
+      console.log('✅ getUser() completed');
+      console.log('👤 getUser result:', user ? { id: user.id, email: user.email, user_metadata: user.user_metadata } : 'null');
       setUser(user)
 
       if (user) {
         // Fetch user profile from our users table
+        console.log('📋 Fetching profile for user:', user.id);
         const { data: profile, error } = await supabase
           .from('users')
           .select('*')
@@ -35,16 +60,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .single()
 
         if (error) {
-          console.error('Error fetching user profile:', error)
+          console.error('❌ Error fetching user profile:', error);
         } else {
+          console.log('✅ Profile fetched:', profile);
           setAppUser(profile)
         }
       } else {
+        console.log('🚫 No user, setting appUser null');
         setAppUser(null)
       }
     } catch (error) {
-      console.error('Error refreshing user:', error)
+      console.error('❌ Error refreshing user:', error);
     } finally {
+      console.log('⏳ Setting loading to false');
       setLoading(false)
     }
   }
@@ -60,10 +88,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
+    console.log('🛠️ AuthProvider useEffect mounted');
     refreshUser()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('🔄 Auth state change:', event, session?.user ? { id: session.user.id, email: session.user.email } : 'no session');
         if (session?.user) {
           setUser(session.user)
           await refreshUser()
@@ -71,11 +101,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(null)
           setAppUser(null)
         }
+        console.log('⏳ Setting loading false from listener');
         setLoading(false)
       }
     )
 
-    return () => subscription.unsubscribe()
+    return () => {
+      console.log('🧹 Unsubscribing auth listener');
+      subscription.unsubscribe()
+    }
   }, [])
 
   return (

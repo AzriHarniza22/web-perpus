@@ -16,6 +16,27 @@ export function RoomGrid() {
   const [error, setError] = useState<string | null>(null)
   const supabase = createClientSupabase()
 
+  const cleanImageSrc = (src: string): string => {
+    if (!src) return src;
+    try {
+      const url = new URL(src.startsWith('http') ? src : `https://${src}`);
+      // For Unsplash, preserve query params as they are essential for image sizing
+      if (url.hostname.includes('unsplash.com')) {
+        const cleaned = url.toString();
+        console.log('Preserved Unsplash src:', cleaned, 'from original:', src);
+        return cleaned;
+      }
+      // For other sources, strip non-essential params if needed
+      url.search = ''; // Remove query params for non-Unsplash
+      const cleaned = url.toString();
+      console.log('Cleaned non-Unsplash src:', cleaned, 'from original:', src);
+      return cleaned;
+    } catch (error) {
+      console.warn('Failed to clean image src:', src, error);
+      return src;
+    }
+  };
+
   console.log('Supabase client initialized:', !!supabase)
 
   useEffect(() => {
@@ -35,7 +56,7 @@ export function RoomGrid() {
         .order('created_at', { ascending: true })
 
       console.log('Supabase query response:', {
-        data,
+        data: data?.map(room => ({ ...room, images: room.images?.slice(0, 2) })), // Log limited images for brevity
         error: error ? { message: error.message, code: error.code, details: error.details } : null,
         status,
         statusText,
@@ -55,7 +76,7 @@ export function RoomGrid() {
         return
       }
 
-      console.log('Fetched rooms:', data)
+      console.log('Fetched rooms with images:', data.map(room => ({ id: room.id, name: room.name, images: room.images?.map(img => ({ original: img, cleaned: cleanImageSrc(img) })) })))
       setRooms(data)
     } catch (err) {
       console.error('Fetch error:', err)
@@ -138,18 +159,19 @@ export function RoomGrid() {
               {room.images && room.images.length > 0 ? (
                 <div className="relative w-full h-full">
                   <Image
-                    src={room.images[0]}
+                    src={cleanImageSrc(room.images[0])}
                     alt={room.name}
                     fill
                     className="object-cover group-hover:scale-105 transition-transform duration-300"
                     sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                    onLoad={() => console.log('Room grid image loaded:', room.name, 'clean src:', cleanImageSrc(room.images[0]))}
                     onError={(e) => {
-                      console.error('Image load failed:', room.images[0])
+                      console.error('Image load failed for room:', room.name, 'original URL:', room.images[0], 'failed src:', e.currentTarget.src)
                       e.currentTarget.style.display = 'none'
                       const parent = e.currentTarget.parentElement
                       if (parent) {
                         parent.className = 'w-full h-full bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center'
-                        parent.innerHTML = `<span className="text-6xl">${roomTypeInfo.icon}</span>`
+                        parent.innerHTML = `<span class="text-6xl">${roomTypeInfo.icon}</span>`
                       }
                     }}
                   />

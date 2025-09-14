@@ -28,6 +28,7 @@ import {
 
 export function Header() {
   const { user, appUser, loading, signOut } = useAuth()
+  console.log('🖥️ Header useAuth:', { loading, user: user ? { id: user.id, email: user.email } : null, appUser: appUser ? { id: appUser.id, full_name: appUser.full_name } : null });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const handleSignOut = async () => {

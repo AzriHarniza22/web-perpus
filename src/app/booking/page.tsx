@@ -36,6 +36,13 @@ export default function BookingPage() {
   const router = useRouter()
   const supabase = createClientSupabase()
 
+  const cleanImageSrc = (src: string): string => {
+    if (!src) return src;
+    const url = new URL(src, 'https://dummy.com'); // Use dummy base for parsing
+    url.search = ''; // Remove query params
+    return url.toString().replace('https://dummy.com', '');
+  };
+
   useEffect(() => {
     if (roomId) {
       fetchRoom()
@@ -64,7 +71,12 @@ export default function BookingPage() {
       }
   
       console.log('Fetched room data:', data)
-      setRoom(data)
+      const roomData = data as Room | null;
+      if (roomData && roomData.images && roomData.images.length > 0) {
+        console.log('Room image src for debugging:', roomData.images[0])
+        console.log('Image src has query params?', roomData.images[0].includes('?'))
+      }
+      setRoom(roomData)
     } catch (error) {
       console.error('Unexpected error fetching room:', error)
       setError('Terjadi kesalahan tak terduga saat memuat ruangan')
@@ -161,9 +173,23 @@ export default function BookingPage() {
       let proposalUrl: string | null = null
       if (proposalFile) {
         try {
+          // Log auth session for validation
+          const { data: { user: currentUser }, error: sessionError } = await supabase.auth.getUser()
+          console.log('Current auth user during upload:', currentUser)
+          if (sessionError) {
+            console.error('Auth session error:', sessionError)
+          }
+
           console.log('Uploading file:', proposalFile.name)
           const fileName = `${user!.id}/${Date.now()}-${proposalFile.name}`
+          console.log('Bucket:', 'booking-proposals')
           console.log('File path:', fileName)
+          console.log('Upload options:', { upsert: true, contentType: proposalFile.type })
+
+          // Optional: Check if bucket exists (logs if fails)
+          const { data: buckets } = await supabase.storage.listBuckets()
+          console.log('Available buckets:', buckets?.map(b => b.name) || 'None')
+
           const { error: uploadError } = await supabase.storage
             .from('booking-proposals')
             .upload(fileName, proposalFile, {
@@ -536,10 +562,20 @@ export default function BookingPage() {
                   <div className="aspect-video relative rounded-lg overflow-hidden">
                     {room.images && room.images.length > 0 ? (
                       <Image
-                        src={room.images[0]}
+                        src={cleanImageSrc(room.images[0])}
                         alt={room.name}
                         fill
                         className="object-cover"
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                        onLoad={() => console.log('Image loaded successfully for room:', room.name, 'clean src:', cleanImageSrc(room.images[0]))}
+                        onError={(e) => {
+                          console.error('Image failed to load in booking page:', room.images[0], e);
+                          e.currentTarget.style.display = 'none';
+                          const parent = e.currentTarget.parentElement;
+                          if (parent) {
+                            parent.innerHTML = '<div class="w-full h-full bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center"><span class="text-4xl">🏛️</span></div>';
+                          }
+                        }}
                       />
                     ) : (
                       <div className="w-full h-full bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center">

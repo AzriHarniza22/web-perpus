@@ -16,6 +16,7 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
+  console.log('RootLayout mounted successfully - chunk loaded without timeout');
   return (
     <html lang="id">
       <body className={inter.className}>
