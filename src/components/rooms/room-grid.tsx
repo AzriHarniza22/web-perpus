@@ -56,7 +56,7 @@ export function RoomGrid() {
         .order('created_at', { ascending: true })
 
       console.log('Supabase query response:', {
-        data: data?.map(room => ({ ...room, images: room.images?.slice(0, 2) })), // Log limited images for brevity
+        data: (data as Room[])?.map(room => ({ ...room, images: room.images?.slice(0, 2) })), // Log limited images for brevity
         error: error ? { message: error.message, code: error.code, details: error.details } : null,
         status,
         statusText,
@@ -65,8 +65,15 @@ export function RoomGrid() {
       })
 
       if (error) {
-        console.error('Supabase error details:', error)
-        setError(`Database error: ${error.message || 'Unknown error'}`)
+        console.error('Supabase error details:', {
+          message: error?.message || 'No message',
+          code: error?.code || 'No code',
+          details: error?.details || 'No details',
+          status,
+          statusText,
+          fullError: JSON.stringify(error, null, 2)
+        })
+        setError(`Database error: ${error?.message || statusText || (status ? `HTTP ${status}` : '') || 'Unknown error'}`)
         return
       }
 
@@ -76,7 +83,7 @@ export function RoomGrid() {
         return
       }
 
-      console.log('Fetched rooms with images:', data.map(room => ({ id: room.id, name: room.name, images: room.images?.map(img => ({ original: img, cleaned: cleanImageSrc(img) })) })))
+      console.log('Fetched rooms with images:', (data as Room[]).map(room => ({ id: room.id, name: room.name, images: room.images?.map((img: string) => ({ original: img, cleaned: cleanImageSrc(img) })) })))
       setRooms(data)
     } catch (err) {
       console.error('Fetch error:', err)
